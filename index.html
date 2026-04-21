@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gravity Lab – Ultimate 🌌</title>
+
+    <style>
+        body{
+          margin:0;
+          overflow:hidden;
+          background:black;
+          color:white;
+          font-family:Poppins,sans-serif;
+        }
+
+        canvas{
+          position:fixed;
+          top:0;
+          left:0;
+        }
+
+        /* UI */
+        .toggle-btn{
+          position:absolute;
+          top:15px;
+          left:15px;
+          z-index:30;
+          background:#00ffc3;
+          border:none;
+          padding:10px;
+          border-radius:8px;
+          cursor:pointer;
+        }
+
+        .sidebar{
+          position:fixed;
+          top:0;
+          left:-260px;
+          width:260px;
+          height:100%;
+          background:rgba(0,0,0,0.85);
+          backdrop-filter:blur(10px);
+          padding:20px;
+          transition:0.3s;
+          z-index:25;
+        }
+
+        .sidebar.open{ left:0; }
+
+        .sidebar h3{
+          color:#00ffc3;
+          margin:15px 0 5px;
+        }
+
+        .sidebar button{
+          width:100%;
+          margin:4px 0;
+          padding:6px;
+          border:none;
+          border-radius:6px;
+          background:linear-gradient(135deg,#00ffc3,#00aaff);
+          cursor:pointer;
+        }
+
+        /* shapes */
+        .shape{
+          position:absolute;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          color:black;
+          font-weight:bold;
+        }
+
+        .box{width:110px;height:110px;border-radius:12px;}
+        .circle{width:90px;height:90px;border-radius:50%;}
+        .pill{width:130px;height:50px;border-radius:40px;}
+
+        .triangle{
+          width:0;height:0;
+          border-left:55px solid transparent;
+          border-right:55px solid transparent;
+          border-bottom:90px solid yellow;
+        }
+
+        .star{
+          width:90px;height:90px;
+          background:gold;
+          clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+        }
+
+        /* planets */
+        .planet{
+          position:absolute;
+          border-radius:50%;
+        }
+
+        /* holes */
+        .hole{
+          position:absolute;
+          width:80px;
+          height:80px;
+          border-radius:50%;
+        }
+
+        .blackhole{
+          background:black;
+          box-shadow:0 0 40px #00aaff inset,0 0 100px #00aaff;
+        }
+
+        .whitehole{
+          background:white;
+          box-shadow:0 0 40px #fff inset,0 0 100px #fff;
+        }
+
+        /* ground */
+        .ground{
+          position:absolute;
+          bottom:0;
+          width:100%;
+          height:80px;
+          background:linear-gradient(to top,#111,transparent);
+        }
+    </style>
+</head>
+
+<body>
+
+<canvas id="bg"></canvas>
+
+<button class="toggle-btn">☰</button>
+
+<div class="sidebar" id="sidebar">
+    <h3>Shapes</h3>
+    <button onclick="addShape('box')">Box</button>
+    <button onclick="addShape('circle')">Circle</button>
+    <button onclick="addShape('pill')">Pill</button>
+    <button onclick="addShape('triangle')">Triangle</button>
+    <button onclick="addShape('star')">Star</button>
+
+    <h3>Space</h3>
+    <button onclick="createPlanet()">Planet</button>
+
+    <h3>Holes</h3>
+    <button onclick="createHole('black')">Black Hole</button>
+    <button onclick="createHole('white')">White Hole</button>
+
+    <h3>Physics</h3>
+    <button onclick="toggleZero()">Zero G</button>
+    <button onclick="mode='attract'">Magnet</button>
+    <button onclick="mode='repel'">Repel</button>
+
+    <h3>Effects</h3>
+    <button onclick="toggleChaos()">Chaos</button>
+</div>
+
+<div class="ground"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+<script>
+    // sidebar
+    const sidebar=document.getElementById("sidebar");
+    document.querySelector(".toggle-btn").onclick=()=>sidebar.classList.toggle("open");
+
+    // stars bg
+    const canvas=document.getElementById("bg");
+    const ctx=canvas.getContext("2d");
+    canvas.width=innerWidth;
+    canvas.height=innerHeight;
+
+    let stars=[...Array(150)].map(()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,v:Math.random()*0.5}));
+
+    function drawBG(){
+     ctx.clearRect(0,0,canvas.width,canvas.height);
+     stars.forEach(s=>{
+      ctx.fillStyle="white";
+      ctx.fillRect(s.x,s.y,2,2);
+      s.y+=s.v;
+      if(s.y>canvas.height)s.y=0;
+     });
+     requestAnimationFrame(drawBG);
+    }
+    drawBG();
+
+    // matter
+    const {Engine,Render,Runner,Bodies,Composite,Body,Mouse,MouseConstraint}=Matter;
+    const engine=Engine.create();
+    const world=engine.world;
+
+    const render=Render.create({
+     element:document.body,
+     engine,
+     options:{width:innerWidth,height:innerHeight,wireframes:false,background:"transparent"}
+    });
+
+    Render.run(render);
+    Runner.run(Runner.create(),engine);
+
+    Composite.add(world,Bodies.rectangle(innerWidth/2,innerHeight,innerWidth,60,{isStatic:true}));
+
+    let bodies=[];
+
+    // shapes
+    function addShape(type){
+     const el=document.createElement("div");
+     el.classList.add("shape",type);
+     el.style.background=`hsl(${Math.random()*360},80%,60%)`;
+     document.body.appendChild(el);
+
+     let w=100,h=100;
+
+     let body = type==="circle"
+     ? Bodies.circle(innerWidth/2,0,w/2,{restitution:0.9})
+     : Bodies.rectangle(innerWidth/2,0,w,h,{restitution:0.9});
+
+     Composite.add(world,body);
+     bodies.push({body,el,w,h});
+
+     (function loop(){
+      let x=body.position.x;
+      let y=body.position.y;
+
+      // limit screen
+      if(x<0) Body.setPosition(body,{x:10,y});
+      if(x>innerWidth) Body.setPosition(body,{x:innerWidth-10,y});
+      if(y<0) Body.setPosition(body,{x,y:10});
+      if(y>innerHeight-100) Body.setPosition(body,{x,y:innerHeight-100});
+
+      el.style.left=x-w/2+"px";
+      el.style.top=y-h/2+"px";
+
+      requestAnimationFrame(loop);
+     })();
+    }
+
+    // planets
+    let planets=[];
+    function createPlanet(){
+     const el=document.createElement("div");
+     el.className="planet";
+     let size=Math.random()*60+40;
+     el.style.width=size+"px";
+     el.style.height=size+"px";
+     el.style.background=`radial-gradient(circle,hsl(${Math.random()*360},80%,70%),black)`;
+     document.body.appendChild(el);
+
+     planets.push({
+      el,
+      x:Math.random()*innerWidth,
+      y:Math.random()*innerHeight,
+      vx:(Math.random()-0.5)*0.5,
+      vy:(Math.random()-0.5)*0.5
+     });
+    }
+
+    function updatePlanets(){
+     planets.forEach(p=>{
+      p.x+=p.vx;
+      p.y+=p.vy;
+
+      if(p.x<0||p.x>innerWidth)p.vx*=-1;
+      if(p.y<0||p.y>innerHeight)p.vy*=-1;
+
+      p.el.style.left=p.x+"px";
+      p.el.style.top=p.y+"px";
+     });
+     requestAnimationFrame(updatePlanets);
+    }
+    updatePlanets();
+
+    // holes system
+    let holes=[];
+
+    function createHole(type){
+     const el=document.createElement("div");
+     el.className="hole "+(type==="black"?"blackhole":"whitehole");
+
+     let x=Math.random()*innerWidth;
+     let y=Math.random()*innerHeight;
+
+     el.style.left=x+"px";
+     el.style.top=y+"px";
+     document.body.appendChild(el);
+
+     holes.push({
+      el,x,y,
+      strength:type==="black"?0.00005:-0.00005,
+      life:800
+     });
+    }
+
+    function updateHoles(){
+     holes.forEach((h,i)=>{
+
+      // affect shapes
+      bodies.forEach(o=>{
+       let dx=h.x-o.body.position.x;
+       let dy=h.y-o.body.position.y;
+
+       Body.applyForce(o.body,o.body.position,{
+        x:dx*h.strength,
+        y:dy*h.strength
+       });
+      });
+
+      // affect planets
+      planets.forEach(p=>{
+       let dx=h.x-p.x;
+       let dy=h.y-p.y;
+
+       p.vx+=dx*h.strength*50;
+       p.vy+=dy*h.strength*50;
+      });
+
+      h.life--;
+      if(h.life<=0){
+       h.el.remove();
+       holes.splice(i,1);
+      }
+     });
+
+     requestAnimationFrame(updateHoles);
+    }
+    updateHoles();
+
+    // mouse force
+    let mode="attract";
+    document.addEventListener("mousemove",(e)=>{
+     bodies.forEach(o=>{
+      let dx=e.clientX-o.body.position.x;
+      let dy=e.clientY-o.body.position.y;
+      let f=mode==="repel"?-1:1;
+      Body.applyForce(o.body,o.body.position,{x:dx*0.00001*f,y:dy*0.00001*f});
+     });
+    });
+
+    // gravity toggle
+    function toggleZero(){
+     engine.world.gravity.y=engine.world.gravity.y===0?1:0;
+    }
+
+    // chaos
+    let chaos=false;
+    function toggleChaos(){ chaos=!chaos; }
+
+    setInterval(()=>{
+     if(chaos){
+      bodies.forEach(o=>{
+       Body.applyForce(o.body,o.body.position,{
+        x:(Math.random()-0.5)*0.02,
+        y:(Math.random()-0.5)*0.02
+       });
+      });
+     }
+    },2000);
+
+    // drag
+    const mouse=Mouse.create(render.canvas);
+    Composite.add(world,MouseConstraint.create(engine,{mouse}));
+
+</script>
+
+</body>
+</html>
